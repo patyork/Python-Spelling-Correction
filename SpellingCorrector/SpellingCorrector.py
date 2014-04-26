@@ -22,13 +22,13 @@ class SpellingCorrector:
 		self.NWORDS = self._train(self._words(file(os.path.join(os.path.dirname(__file__), 'NewSpellCheckCorpus.txt')).read()))
 		
 		# Define the Emojis
-		happy = ":-) :) :o) :] :3 :c) :> =] 8) =) :} :^) :-D :D 8-D 8D x-D xD X-D XD =-D =D =-3 =3 B^D :-)) :'-) :') ;-) ;) *-) *) ;-] ;] ;D ;^) :-, }:-) }:) 3:-) 3:) O:-) 0:-3 0:3 0:-) 0:) 0;^) |;-) |-O <3 (-: (: (o: [: <: [= (8 (= (-= {: {-: {-= (^: (^= ((: (((: ((((: (((((: ((((((: :)) :))) :)))) :))))) :)))))) ((-: (((-: ((((-: (((((-: ((((((-: :-)) :-))) :-)))) :-))))) :-)))))) :DD 8DD XDD X-DD"
-		sad = ">:[ :-( :(  :-c :c :-< :< :-[ :[ :{ ;( :-|| :@ >:( :| :-| :-/ :-\ :/ :\ :'-( :'( </3"
+		happy = ":-) :) :o) :] :3 :c) :> :&gt; =] 8) =) =)) =))) :} :^) :-D :D 8-D 8D x-D xD X-D xD =-D =D =-3 =3 b^d :-)) :'-) :') ;-) ;) *-) *) ;-] ;] ;d ;^) :-, }:-) }:) 3:-) 3:) o:-) 0:-3 0:3 0:-) 0:) 0;^) |;-) |-O <3 &lt;3 &lt;33 &lt;333 (-: (: (o: [: <: &lt;: [= (8 (= (-= {: {-: {-= (^: (^= ((: (((: ((((: (((((: ((((((: :)) :))) :)))) :))))) :)))))) ((-: (((-: ((((-: (((((-: ((((((-: :-)) :-))) :-)))) :-))))) :-)))))) :DD 8DD XDD X-DD =&gt; :p (; c: ^_^ ^.^ ;)) ;))) ;))))"
+		sad = ">:[ &lt;:[ :-( :(  :-c :c :-< :'d :< :-[ ]-: :[ ]: :{ ;( :-|| :@ >:( :| :-| :-/ :-\ :/ :\ /: /-: /= /-= :'-( :'( </3 &lt;/3 &lt;/33 &lt;/333 -.- -_- -__- -___- ._. ): :(( :((( :(((( )): ))): )))):"
 
 		for x in happy.split(' '):
-			self.Emojis.update({x:'happy'})
+			self.Emojis.update({x.lower():'happy'})
 		for x in sad.split(' '):
-			self.Emojis.update({x:'sad'})
+			self.Emojis.update({x.lower():'sad'})
         
  	#TODO
  	# Add Update function to update the valid words list, and the spelling corrector corpus
@@ -51,7 +51,8 @@ class SpellingCorrector:
 		transposes = [a + b[1] + b[0] + b[2:] for a, b in s if len(b)>1]
 		replaces   = [a + c + b[1:] for a, b in s for c in self.alphabet if b]
 		inserts    = [a + c + b     for a, b in s for c in self.alphabet]
-		return set(deletes + transposes + replaces + inserts)
+		#return set(deletes + transposes + replaces + inserts)
+		return set([x for x in deletes + transposes + replaces + inserts if (x in self.validWords)])
 
 	def _known_edits2(self, word):
 		return set(e2 for e1 in self._edits1(word) for e2 in self._edits1(e1) if e2 in self.NWORDS)
@@ -60,7 +61,8 @@ class SpellingCorrector:
 		return set(w for w in words if w in self.NWORDS)
 
 	def _correct(self, word):
-		candidates = self._known([word]) or self._known(self._edits1(word)) or self._known_edits2(word) or [word]
+		candidates = self._known(self._edits1(word)) or self._known_edits2(word) or [word]
+		#print candidates
 		return max(candidates, key=self.NWORDS.get)
 		
 	
@@ -102,20 +104,6 @@ class SpellingCorrector:
 	
 	# Intermediate spelling correction function
 	def _FullCorrect(self, word):
-		word = word.lower()
-	
-		# First, check if in the valid word list, return quickly is it is
-		if word in self.validWords:
-			return word
-	
-		# Check emojis/emoticons
-		if word in self.Emojis:
-			return self.Emojis[word]
-	
-		#Check hyphenation here
-	
-	
-	
 	
 		#Remove puncuation
 		nowCorrect = word.translate(None, string.punctuation)
@@ -148,17 +136,19 @@ class SpellingCorrector:
 	
 	# High-level single-word Spelling Corrector
 	def SpellingCorrect(self, word):
+		word = word.lower()
 	
-		if word in self.validWords:
-			#print 'in valid words'
-			yield word
-	
-		elif word in self.Emojis:
+		if word in self.Emojis:
 			yield self.Emojis[word]
 		
 		elif len(word) < 3:
 			yield None
-	
+			
+		elif word in self.validWords:
+			#print 'in valid words'
+			yield word
+		
+			
 		else:
 	
 			words = []
@@ -190,5 +180,168 @@ class SpellingCorrector:
 				if correct is not None: yield correct
 	
 	
+	# Hashtag splitter
+	# TODO: 5 and 6 words runtogether
+	#		apply this to the runtogethers above?
+	def HashTagSplit(self, hashtag):
+		hashtag = hashtag.replace('#', '').lower()
+		
+		# two words ran together
+		s = [(hashtag[:i], hashtag[i:]) for i in range(len(hashtag) + 1)]
+		runtogethers = [a + ' ' + b for a,b in s]
+		
+		runtogethers = set(runtogethers)
+
+		words = zip([x.split(' ')[0] for x in runtogethers], [x.split(' ')[1] for x in runtogethers])
+		
+		DONE = False
+		
+		for wordPair in words:
+			if wordPair[0] in self.validWords and wordPair[1] in self.validWords:
+				yield wordPair[0]
+				yield wordPair[1]
+				DONE = True
+				break
+		
+		if not DONE:
+			# Three words ran together
+			s = []
+			for i in range(1, len(hashtag)):
+				for j in range(1, len(hashtag)):
+					if j > i:
+						s.append((hashtag[:i], hashtag[i:j], hashtag[j:]))
+					
+			for wordTup in s:
+				if wordTup[0] in self.validWords and wordTup[1] in self.validWords and wordTup[2] in self.validWords:
+					yield wordTup[0]
+					yield wordTup[1]
+					yield wordTup[2]
+					DONE = True
+					break
+					
+			if not DONE:
+				# 4 words ran together
+				s = []
+				for i in range(1, len(hashtag)):
+					for j in range(2, len(hashtag)):
+						for k in range(3, len(hashtag)):
+							if j>i and k>j:
+								s.append((hashtag[:i], hashtag[i:j], hashtag[j:k], hashtag[k:]))
+				
+				for wordTup in s:
+					if wordTup[0] in self.validWords and wordTup[1] in self.validWords and wordTup[2] in self.validWords and wordTup[3] in self.validWords:
+						yield wordTup[0]
+						yield wordTup[1]
+						yield wordTup[2]
+						yield wordTup[3]
+						DONE = True
+						break
+				
 	
+	# Quick and dirty spam detector.
+	def IsSpam(self, tweet):
+		tweet=tweet.lower()
+		
+		# RTs can't be spam (in this model)
+		if tweet.startswith('rt '):
+			return False
+			
+		isSpam = False
+		
+		## Working
+		if 'stats:' in tweet or 'automatically checked' in tweet:
+			return True
+			
+		## Working
+		if 'harvested' in tweet:
+			return True
+		
+		## Working
+		if 'unfollow' in tweet and 'via' in tweet:
+			return True
+		
+		## Meh, working about 90%, not picking up many Tweets
+		if 'i just posted' in tweet and 'http' in tweet:
+			return True
+		
+		## Quite a few false-positives
+		words = tweet.strip().split(' ')
+		if tweet.startswith('@') and words[len(words)-1].startswith('http') and (' u ' in tweet or 'you' in tweet) and ('crazy' in tweet or 'nuts' in tweet):
+			return True
+		
+			
+		return isSpam
 	
+	#TODO
+	# See about the corrector not correcting for added punctuation (anyone,/anyone. != anyone   ATM)
+	# See about dictionary inclusions
+	# Possessives? (tomorrow's)
+	# Lemmatization - when to do it most effectively
+	# Make all above fixes; reprocces reviews; retrain
+	def PossibleInclusions():
+		pass
+		'''
+		&gt;&gt;&gt;&gt;		>>>>		meaning: better than/the best			ex: my mom >>>>			my mom is the best
+		&lt;&lt;&lt;&lt;		<<<<		meaning: worse than/the worst			ex: my brother <<<		my brother is the worst
+		smh									meaning: shake my head/disappointed
+		stfu
+		lmao
+		lmfao
+		haha
+		hahaha
+		shit
+		fuck
+		fucking
+		fucken
+		w/o									without
+		omg
+		alotta
+		hmmmm
+		lol
+		hmmm
+		im
+		gotta
+		ok 			----> okay
+		tryna		----> trying
+		em			----> them
+		bc			----> because
+		af			----> as fuck --> really
+		xx, xxxx	----> hug/love
+		idgaf
+		
+		
+		
+		
+		
+		Words to be added to dictionary:
+		
+		stressful
+		happiness
+		genuinely
+		anyone( punctuation not picked up? ,.)
+		updates
+		introducing
+		exams
+		siblings
+		families
+		releasing
+		edited
+		responsibilities
+		featuring
+		creepiest
+		negativity
+		ignoring
+		realizing
+		promoting
+		businesses
+		definitely
+		happened
+		congrats
+		enjoyed
+		should've
+		companies
+		laughed
+		
+		
+		
+		'''
